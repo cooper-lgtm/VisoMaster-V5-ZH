@@ -1,6 +1,6 @@
 import threading
 import queue
-from typing import TYPE_CHECKING, Dict, Tuple
+from typing import TYPE_CHECKING, Dict, Tuple, Any
 import time
 import subprocess
 from pathlib import Path
@@ -11,7 +11,10 @@ from functools import partial
 import cv2
 import numpy
 import torch
-import pyvirtualcam
+try:
+    import pyvirtualcam
+except Exception:
+    pyvirtualcam = None
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtGui import QPixmap
@@ -47,7 +50,7 @@ class VideoProcessor(QObject):
         self.current_frame: numpy.ndarray = []
         self.recording = False
 
-        self.virtcam: pyvirtualcam.Camera|None = None
+        self.virtcam: Any = None
 
         self.recording_sp: subprocess.Popen|None = None 
         self.temp_file = '' 
@@ -423,6 +426,9 @@ class VideoProcessor(QObject):
 
     def enable_virtualcam(self, backend=False):
         #Check if capture contains any cv2 stream or is it an empty list
+        if pyvirtualcam is None:
+            print("pyvirtualcam not installed; virtual camera disabled.")
+            return
         if self.media_capture:
             if isinstance(self.current_frame, numpy.ndarray):
                 frame_height, frame_width, _ = self.current_frame.shape

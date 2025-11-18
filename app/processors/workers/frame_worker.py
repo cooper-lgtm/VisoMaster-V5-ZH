@@ -11,11 +11,13 @@ import torchvision
 from torchvision import transforms
 
 import numpy as np
+import cv2
 
 from app.processors.utils import faceutil
 import app.ui.widgets.actions.common_actions as common_widget_actions
 from app.ui.widgets.actions import video_control_actions
 from app.helpers.miscellaneous import t512,t384,t256,t128, ParametersDict
+from app.beauty.pixel_free_engine import PFBeautyFiterType
 
 if TYPE_CHECKING:
     from app.ui.main_ui import MainWindow
@@ -56,6 +58,44 @@ class FrameWorker(threading.Thread):
                 # Img must be in BGR format
                 self.frame = self.frame[..., ::-1]  # Swap the channels from RGB to BGR
             self.frame = np.ascontiguousarray(self.frame)
+
+            # Enforce strict output resolution using WebcamMaxResSelection via center-crop + resize (no rotation)
+            try:
+                res_text = str(self.main_window.control.get('WebcamMaxResSelection', '1280x720'))
+                if 'x' in res_text:
+                    t_w_str, t_h_str = res_text.split('x')
+                    t_w, t_h = int(t_w_str), int(t_h_str)
+                    if t_w > 0 and t_h > 0:
+                        h, w, _ = self.frame.shape
+                        target_ratio = float(t_w) / float(t_h)
+                        cur_ratio = float(w) / float(h) if h > 0 else target_ratio
+
+                        def to_even(x: int) -> int:
+                            return x if (x % 2 == 0) else (x - 1 if x > 1 else 2)
+
+                        # center crop to target aspect ratio
+                        if cur_ratio > target_ratio:
+                            new_w = to_even(int(h * target_ratio))
+                            x0 = max((w - new_w) // 2, 0)
+                            self.frame = self.frame[:, x0:x0 + new_w, :]
+                        elif cur_ratio < target_ratio:
+                            new_h = to_even(int(w / target_ratio))
+                            y0 = max((h - new_h) // 2, 0)
+                            self.frame = self.frame[y0:y0 + new_h, :, :]
+                        # else already matching aspect
+
+                        # resize to exact target resolution
+                        self.frame = cv2.resize(
+                            self.frame,
+                            (t_w, t_h),
+                            interpolation=cv2.INTER_AREA
+                            if (self.frame.shape[1] >= t_w and self.frame.shape[0] >= t_h)
+                            else cv2.INTER_LINEAR,
+                        )
+                        self.frame = np.ascontiguousarray(self.frame)
+            except Exception:
+                # Fail-safe: keep original frame if anything goes wrong
+                pass
 
             # Display the frame if processing is still active
 
@@ -201,8 +241,33 @@ class FrameWorker(threading.Thread):
 
         img = img.permute(1,2,0)
         img = img.cpu().numpy()
-        # RGB to BGR
-        return img[..., ::-1]
+        img = img[..., ::-1]  # RGB to BGR
+        return self.apply_pixel_free_beauty(img, control)
+
+    def apply_pixel_free_beauty(self, frame: np.ndarray, control: dict) -> np.ndarray:
+        worker = getattr(self.main_window, "pixel_free_worker", None)
+        if not worker or not control.get("BeautyEnableToggle"):
+            return frame
+        try:
+            params = {
+                PFBeautyFiterType.PFBeautyFiterTypeFace_thinning: float(control.get("BeautyThinFaceSlider", 0)) / 100.0,
+                PFBeautyFiterType.PFBeautyFiterTypeFaceBlurStrength: float(control.get("BeautySmoothSlider", 0)) / 100.0,
+                PFBeautyFiterType.PFBeautyFiterTypeFaceWhitenStrength: float(control.get("BeautyWhitenSlider", 0)) / 100.0,
+                PFBeautyFiterType.PFBeautyFiterTypeFaceRuddyStrength: float(control.get("BeautyRuddySlider", 0)) / 100.0,
+                PFBeautyFiterType.PFBeautyFiterStrength: float(control.get("BeautyFilterStrengthSlider", 0)) / 100.0,
+                PFBeautyFiterType.PFBeautyFiterTypeFaceEyeBrighten: float(control.get("BeautyEyeBrightSlider", 0)) / 100.0,
+            }
+            filter_name = (control.get("BeautyFilterNameText") or "").strip()
+            if filter_name:
+                params[PFBeautyFiterType.PFBeautyFiterName] = filter_name
+            rotation = control.get("BeautyRotationSelection", 0)
+            result = worker.process(frame, params, rotation)
+            if result is None:
+                return frame
+            return result
+        except Exception as exc:  # pylint: disable=broad-except
+            print(f"PixelFree 美颜失败: {exc}")
+            return frame
     
     def keypoints_adjustments(self, kps_5: np.ndarray, parameters: dict) -> np.ndarray:
         # Change the ref points

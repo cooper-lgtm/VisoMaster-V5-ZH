@@ -1,7 +1,9 @@
-from typing import Dict
-from pathlib import Path
-from functools import partial
 import copy
+import logging
+import os
+from functools import partial
+from pathlib import Path
+from typing import Dict
 
 from PySide6 import QtWidgets, QtGui
 from PySide6 import QtCore
@@ -27,8 +29,15 @@ from app.ui.widgets.settings_layout_data import SETTINGS_LAYOUT_DATA
 from app.ui.widgets.face_editor_layout_data import FACE_EDITOR_LAYOUT_DATA
 from app.helpers.miscellaneous import DFM_MODELS_DATA, ParametersDict
 from app.helpers.typing_helper import FacesParametersTypes, ParametersTypes, ControlTypes, MarkerTypes
+from app.beauty.pixel_free_engine import (
+    PixelFreeConfig,
+    PixelFreeError,
+    PixelFreeWorker,
+    build_default_config,
+)
 
 ParametersWidgetTypes = Dict[str, widget_components.ToggleButton|widget_components.SelectionBox|widget_components.ParameterDecimalSlider|widget_components.ParameterSlider|widget_components.ParameterText]
+LOGGER = logging.getLogger(__name__)
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     placeholder_update_signal = QtCore.Signal(QtWidgets.QListWidget, bool)
@@ -73,6 +82,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.control: ControlTypes = {}
         self.parameter_widgets: ParametersWidgetTypes = {}
         self.loaded_embedding_filename: str = ''
+        self.pixel_free_worker: PixelFreeWorker | None = None
         
         self.last_target_media_folder_path = ''
         self.last_input_media_folder_path = ''
@@ -195,6 +205,60 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Initialize the button states
         video_control_actions.reset_media_buttons(self)
+        self.setup_pixel_free_engine(show_message=False)
+
+    def setup_pixel_free_engine(self, show_message: bool = False):
+        """Load or reload the PixelFree SDK using current control values."""
+        if not self.control:
+            return
+        if os.name != "nt":
+            if show_message:
+                common_widget_actions.create_and_show_toast_message(
+                    self,
+                    "美颜SDK",
+                    "PixelFree 仅支持 Windows 环境，当前系统无法启用。",
+                    "warning",
+                )
+            if self.pixel_free_worker:
+                self.pixel_free_worker.close()
+                self.pixel_free_worker = None
+            return
+
+        default_cfg = build_default_config()
+        dll_path = self.control.get("BeautyDllPathText", str(default_cfg.dll_path))
+        auth_path = self.control.get("BeautyAuthPathText", str(default_cfg.auth_path))
+        default_filter = str(default_cfg.filter_path) if default_cfg.filter_path else ""
+        filter_path = self.control.get("BeautyFilterPathText", default_filter)
+        config = PixelFreeConfig(
+            dll_path=dll_path or str(default_cfg.dll_path),
+            auth_path=auth_path or str(default_cfg.auth_path),
+            filter_path=(filter_path or default_filter) or None,
+        )
+
+        try:
+            if self.pixel_free_worker:
+                self.pixel_free_worker.reload(config)
+            else:
+                self.pixel_free_worker = PixelFreeWorker(config)
+            if show_message:
+                common_widget_actions.create_and_show_toast_message(
+                    self,
+                    "美颜SDK",
+                    "PixelFree 资源加载成功",
+                    "success",
+                )
+        except PixelFreeError as exc:
+            LOGGER.warning("PixelFree 初始化失败: %s", exc)
+            if self.pixel_free_worker:
+                self.pixel_free_worker.close()
+                self.pixel_free_worker = None
+            if show_message:
+                common_widget_actions.create_and_show_toast_message(
+                    self,
+                    "美颜SDK",
+                    str(exc),
+                    "error",
+                )
 
         #Set GPU Memory Progressbar
         font = self.vramProgressBar.font()
@@ -258,6 +322,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.video_processor.stop_processing()
         list_view_actions.clear_stop_loading_input_media(self)
         list_view_actions.clear_stop_loading_target_media(self)
+        if self.pixel_free_worker:
+            self.pixel_free_worker.close()
+            self.pixel_free_worker = None
 
         save_load_actions.save_current_workspace(self, 'last_workspace.json')
         # Optionally handle the event if needed

@@ -48,7 +48,8 @@ class ModelsProcessor(QtCore.QObject):
         super().__init__()
         self.main_window = main_window
         self.provider_name = 'TensorRT'
-        self.device = device
+        # Prefer CUDA when available; otherwise default to CPU for cross‑platform startup (e.g., macOS)
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model_lock = threading.RLock()  # Reentrant lock for model access
         self.trt_ep_options = {
             # 'trt_max_workspace_size': 3 << 30,  # Dimensione massima dello spazio di lavoro in bytes
@@ -61,10 +62,16 @@ class ModelsProcessor(QtCore.QObject):
             'trt_layer_norm_fp32_fallback': True,
             'trt_builder_optimization_level': 5,
         }
-        self.providers = [
-            ('CUDAExecutionProvider'),
-            ('CPUExecutionProvider')
-        ]       
+        # Pick sensible default providers based on availability
+        if self.device == 'cuda':
+            self.providers = [
+                ('CUDAExecutionProvider'),
+                ('CPUExecutionProvider')
+            ]
+        else:
+            self.providers = [
+                ('CPUExecutionProvider')
+            ]
         self.nThreads = 2
         self.syncvec = torch.empty((1, 1), dtype=torch.float32, device=self.device)
 
@@ -254,23 +261,27 @@ class ModelsProcessor(QtCore.QObject):
         self.delete_models_trt()
 
     def get_gpu_memory(self):
-        command = "nvidia-smi --query-gpu=memory.total --format=csv"
-        memory_total_info = sp.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
-        memory_total = [int(x.split()[0]) for i, x in enumerate(memory_total_info)]
+        try:
+            command = "nvidia-smi --query-gpu=memory.total --format=csv"
+            memory_total_info = sp.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
+            memory_total = [int(x.split()[0]) for i, x in enumerate(memory_total_info)]
 
-        command = "nvidia-smi --query-gpu=memory.free --format=csv"
-        memory_free_info = sp.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
-        memory_free = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
+            command = "nvidia-smi --query-gpu=memory.free --format=csv"
+            memory_free_info = sp.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
+            memory_free = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
 
-        memory_used = memory_total[0] - memory_free[0]
-
-        return memory_used, memory_total[0]
+            memory_used = memory_total[0] - memory_free[0]
+            return memory_used, memory_total[0]
+        except Exception:
+            # Graceful fallback on systems without NVIDIA GPUs (e.g., macOS)
+            return 0, 1
     
     def clear_gpu_memory(self):
         self.delete_models()
         self.delete_models_dfm()
         self.delete_models_trt()
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
     def load_inswapper_iss_emap(self, model_name):

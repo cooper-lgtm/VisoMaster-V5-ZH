@@ -30,7 +30,7 @@ install.dat
 cache/
 ffmpeg/
 output/
-WZF/
+wzf311/
 .thumbnails/
 tensorrt-engines/
 source_videos/
@@ -38,9 +38,21 @@ source_images/
 test_frames/
 test_videos/
 dependencies/
+model_assets/
+TensorRT-10.13.0.35/
+venv/
+.venv/
+Video/
+image/
+VisoMasterPNG/
 
 # 媒体和大文件
 *.mp4
 *.jpg
+*.dll
+*.so
+*.lib
+*.pkl
+*.whl
 *.exe
 visomaster.ico

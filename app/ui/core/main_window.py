@@ -2,7 +2,7 @@
 ################################################################################
 ## Form generated from reading UI file 'MainWindow.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.7.2
+## Created by: Qt User Interface Compiler version 6.8.2
 ##
 ## WARNING
 ################################################################################
@@ -545,7 +545,7 @@ class Ui_MainWindow(object):
     # setupUi
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"VisoMaster v0.1.5 中文版-王知风", None))
+        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"VisoMaster v0.1.6 中文版-王知风", None))
         self.actionExit.setText(QCoreApplication.translate("MainWindow", u"退出", None))
         self.actionLoad_Embeddings.setText(QCoreApplication.translate("MainWindow", u"加载嵌入", None))
         self.actionSave_Embeddings.setText(QCoreApplication.translate("MainWindow", u"保存嵌入", None))

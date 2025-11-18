@@ -2,7 +2,10 @@ from typing import TYPE_CHECKING
 import torch
 import qdarkstyle
 from PySide6 import QtWidgets 
-import qdarktheme
+try:
+    import qdarktheme
+except Exception:
+    qdarktheme = None
 
 if TYPE_CHECKING:
     from app.ui.main_ui import MainWindow
@@ -31,7 +34,8 @@ def change_theme(main_window: 'MainWindow', new_theme):
         custom_colors = custom_colors or {"primary": "#4facc9"}
         with open(f"app/ui/styles/{filename}", "r") as f: # pylint: disable=unspecified-encoding
             _style = f.read()
-            _style = qdarktheme.load_stylesheet(theme=theme, custom_colors=custom_colors)+'\n'+_style
+            if qdarktheme:
+                _style = qdarktheme.load_stylesheet(theme=theme, custom_colors=custom_colors)+'\n'+_style
         return _style
     app = QtWidgets.QApplication.instance()
 
@@ -64,3 +68,11 @@ def toggle_virtualcam(main_window: 'MainWindow', toggle_value=False):
 def enable_virtualcam(main_window: 'MainWindow', backend):
     print('backend', backend)
     main_window.video_processor.enable_virtualcam(backend=backend)
+
+
+def reload_pixel_free_engine(main_window: 'MainWindow', _value=None):
+    """Called when PixelFree 资源路径被修改时，重新加载 SDK。"""
+    try:
+        main_window.setup_pixel_free_engine(show_message=True)
+    except AttributeError:
+        pass
