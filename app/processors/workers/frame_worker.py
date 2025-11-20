@@ -1,5 +1,5 @@
 import traceback
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Union
 import threading
 from math import floor, ceil
 
@@ -249,18 +249,48 @@ class FrameWorker(threading.Thread):
         if not worker or not control.get("BeautyEnableToggle"):
             return frame
         try:
-            params = {
-                PFBeautyFiterType.PFBeautyFiterTypeFace_thinning: float(control.get("BeautyThinFaceSlider", 0)) / 100.0,
-                PFBeautyFiterType.PFBeautyFiterTypeFaceBlurStrength: float(control.get("BeautySmoothSlider", 0)) / 100.0,
-                PFBeautyFiterType.PFBeautyFiterTypeFaceWhitenStrength: float(control.get("BeautyWhitenSlider", 0)) / 100.0,
-                PFBeautyFiterType.PFBeautyFiterTypeFaceRuddyStrength: float(control.get("BeautyRuddySlider", 0)) / 100.0,
-                PFBeautyFiterType.PFBeautyFiterStrength: float(control.get("BeautyFilterStrengthSlider", 0)) / 100.0,
-                PFBeautyFiterType.PFBeautyFiterTypeFaceEyeBrighten: float(control.get("BeautyEyeBrightSlider", 0)) / 100.0,
+            slider_map = {
+                PFBeautyFiterType.PFBeautyFiterTypeFace_EyeStrength: "BeautyEyeStrengthSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_thinning: "BeautyThinFaceSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_narrow: "BeautyNarrowFaceSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_chin: "BeautyChinSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_V: "BeautyVFaceSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_small: "BeautySmallFaceSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_nose: "BeautyNoseSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_forehead: "BeautyForeheadSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_mouth: "BeautyMouthSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_philtrum: "BeautyPhiltrumSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_long_nose: "BeautyLongNoseSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_eye_space: "BeautyEyeSpaceSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_smile: "BeautySmileSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_eye_rotate: "BeautyEyeRotateSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFace_canthus: "BeautyCanthusSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFaceBlurStrength: "BeautySmoothSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFaceWhitenStrength: "BeautyWhitenSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFaceRuddyStrength: "BeautyRuddySlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFaceSharpenStrength: "BeautySharpenSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFaceM_newWhitenStrength: "BeautyNewWhitenSlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFaceH_qualityStrength: "BeautyQualitySlider",
+                PFBeautyFiterType.PFBeautyFiterTypeFaceEyeBrighten: "BeautyEyeBrightSlider",
+                PFBeautyFiterType.PFBeautyFiterStrength: "BeautyFilterStrengthSlider",
+                PFBeautyFiterType.PFBeautyFiterSticker2DFilter: "BeautyStickerSlider",
+                PFBeautyFiterType.PFBeautyFiterExtend: "BeautyExtendSlider",
+                PFBeautyFiterType.PFBeautyFilterNasolabial: "BeautyNasolabialSlider",
+                PFBeautyFiterType.PFBeautyFilterBlackEye: "BeautyBlackEyeSlider",
             }
+            params: Dict[PFBeautyFiterType, Union[float, str]] = {}
+            for pf_type, control_key in slider_map.items():
+                raw_value = control.get(control_key)
+                if raw_value is None:
+                    continue
+                try:
+                    params[pf_type] = float(raw_value) / 100.0
+                except (TypeError, ValueError):
+                    continue
             filter_name = (control.get("BeautyFilterNameText") or "").strip()
             if filter_name:
                 params[PFBeautyFiterType.PFBeautyFiterName] = filter_name
-            rotation = control.get("BeautyRotationSelection", 0)
+            rotation = int(control.get("BeautyRotationSelection", 0) or 0)
             result = worker.process(frame, params, rotation)
             if result is None:
                 return frame

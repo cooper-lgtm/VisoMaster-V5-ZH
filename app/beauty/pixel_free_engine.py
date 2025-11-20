@@ -116,6 +116,8 @@ class PFBeautyFiterType(IntEnum):
     PFBeautyFiterTypeOneKey = 26
     PFBeautyFiterWatermark = 27
     PFBeautyFiterExtend = 28
+    PFBeautyFilterNasolabial = 29
+    PFBeautyFilterBlackEye = 30
 
 
 class PFIamgeInput(ctypes.Structure):
