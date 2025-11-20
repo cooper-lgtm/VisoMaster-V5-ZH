@@ -334,15 +334,6 @@ SETTINGS_LAYOUT_DATA: LayoutDictTypes = {
             'requiredToggleValue': True,
             'help': 'PFBeautyFiterStrength，控制滤镜整体强度',
         },
-        'BeautyFilterNameText': {
-            'level': 2,
-            'label': '滤镜名称',
-            'default': '',
-            'width': 220,
-            'parentToggle': 'BeautyEnableToggle',
-            'requiredToggleValue': True,
-            'help': 'PFBeautyFiterName，填写 bundle 内置滤镜 ID，如 heibai1',
-        },
         'BeautyStickerSlider': {
             'level': 2,
             'label': '2D 贴纸',

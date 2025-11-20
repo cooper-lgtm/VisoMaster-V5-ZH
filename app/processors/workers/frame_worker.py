@@ -287,9 +287,6 @@ class FrameWorker(threading.Thread):
                     params[pf_type] = float(raw_value) / 100.0
                 except (TypeError, ValueError):
                     continue
-            filter_name = (control.get("BeautyFilterNameText") or "").strip()
-            if filter_name:
-                params[PFBeautyFiterType.PFBeautyFiterName] = filter_name
             rotation = int(control.get("BeautyRotationSelection", 0) or 0)
             result = worker.process(frame, params, rotation)
             if result is None:
