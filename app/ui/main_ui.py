@@ -35,6 +35,7 @@ from app.beauty.pixel_free_engine import (
     PixelFreeWorker,
     build_default_config,
 )
+from app.helpers.resource_path import resource_path
 
 ParametersWidgetTypes = Dict[str, widget_components.ToggleButton|widget_components.SelectionBox|widget_components.ParameterDecimalSlider|widget_components.ParameterSlider|widget_components.ParameterText]
 LOGGER = logging.getLogger(__name__)
@@ -82,7 +83,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.control: ControlTypes = {}
         self.parameter_widgets: ParametersWidgetTypes = {}
         self.loaded_embedding_filename: str = ''
-        self.pixel_free_worker: PixelFreeWorker | None = None
+        self.pixel_free_worker: PixelFreeWorker | None = getattr(self, "_bootstrap_pixel_free_worker", None)
         
         self.last_target_media_folder_path = ''
         self.last_input_media_folder_path = ''
@@ -224,7 +225,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 self.pixel_free_worker = None
             return
 
-        default_cfg = build_default_config()
+        default_cfg = build_default_config(resource_path("dependencies", "pixel_free"))
         dll_path = self.control.get("BeautyDllPathText", str(default_cfg.dll_path))
         auth_path = self.control.get("BeautyAuthPathText", str(default_cfg.auth_path))
         default_filter = str(default_cfg.filter_path) if default_cfg.filter_path else ""
@@ -268,8 +269,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # Set face_swap_tab as the default focused tab
         self.tabWidget.setCurrentIndex(0)
         # widget_actions.add_groupbox_and_widgets_from_layout_map(self)
-    def __init__(self):
+    def __init__(self, pixel_free_worker: PixelFreeWorker | None = None):
         super(MainWindow, self).__init__()
+        self._bootstrap_pixel_free_worker = pixel_free_worker
         self.setupUi(self)
         self.initialize_variables()
         self.initialize_widgets()

@@ -2,6 +2,18 @@ models_dir = './model_assets'
 assets_repo = "https://github.com/visomaster/visomaster-assets/releases/download"
 
 try:
+    from app.helpers.resource_path import ensure_dll_directory, resource_path
+
+    for _p in (
+        resource_path("TensorRT-10.13.0.35", "bin"),
+        resource_path("TensorRT-10.13.0.35", "lib"),
+        resource_path("dependencies"),
+    ):
+        ensure_dll_directory(_p)
+except Exception:
+    pass
+
+try:
     import tensorrt as trt
     models_trt_list = [
         {
