@@ -1,54 +1,68 @@
 models_dir = './model_assets'
 assets_repo = "https://github.com/visomaster/visomaster-assets/releases/download"
 
-try:
-    from app.helpers.resource_path import ensure_dll_directory, resource_path
+_trt_models_cache = None
 
-    for _p in (
-        resource_path("TensorRT-10.13.0.35", "bin"),
-        resource_path("TensorRT-10.13.0.35", "lib"),
-        resource_path("dependencies"),
-    ):
-        ensure_dll_directory(_p)
-except Exception:
-    pass
 
-try:
-    import tensorrt as trt
-    models_trt_list = [
+def get_trt_models():
+    """
+    Lazy TensorRT model list. Avoids importing tensorrt during startup.
+    """
+    global _trt_models_cache
+    if _trt_models_cache is not None:
+        return _trt_models_cache
+    try:
+        from app.helpers.resource_path import ensure_dll_directory, resource_path
+
+        for _p in (
+            resource_path("TensorRT-10.13.0.35", "bin"),
+            resource_path("TensorRT-10.13.0.35", "lib"),
+            resource_path("dependencies"),
+        ):
+            ensure_dll_directory(_p)
+    except Exception:
+        pass
+
+    try:
+        import tensorrt as trt
+    except ModuleNotFoundError:
+        _trt_models_cache = []
+        return _trt_models_cache
+
+    ver = trt.__version__
+    _trt_models_cache = [
         {
-            'model_name': 'LivePortraitMotionExtractor', 
-            'local_path': f'{models_dir}/liveportrait_onnx/motion_extractor.' + trt.__version__ + '.trt', 
+            'model_name': 'LivePortraitMotionExtractor',
+            'local_path': f'{models_dir}/liveportrait_onnx/motion_extractor.{ver}.trt',
             'hash': '8cab6d8fe093a07ee59e14bf83b9fbc90732ce7a6c1732b88b59f4457bea6204'
         },
         {
-            'model_name': 'LivePortraitAppearanceFeatureExtractor', 
-            'local_path': f'{models_dir}/liveportrait_onnx/appearance_feature_extractor.' + trt.__version__ + '.trt', 
+            'model_name': 'LivePortraitAppearanceFeatureExtractor',
+            'local_path': f'{models_dir}/liveportrait_onnx/appearance_feature_extractor.{ver}.trt',
             'hash': '7fea0c28948a5f0d21ae0712301084a0b4a0b1fdef48983840d58d8711da90af'
         },
         {
-            'model_name': 'LivePortraitStitchingEye', 
-            'local_path': f'{models_dir}/liveportrait_onnx/stitching_eye.' + trt.__version__ + '.trt', 
+            'model_name': 'LivePortraitStitchingEye',
+            'local_path': f'{models_dir}/liveportrait_onnx/stitching_eye.{ver}.trt',
             'hash': '266afbccd79f2f5ae277242b19dd9299815b24dc453b22f6fd79fbf8f3a1e593'
         },
         {
-            'model_name': 'LivePortraitStitchingLip', 
-            'local_path': f'{models_dir}/liveportrait_onnx/stitching_lip.' + trt.__version__ + '.trt', 
+            'model_name': 'LivePortraitStitchingLip',
+            'local_path': f'{models_dir}/liveportrait_onnx/stitching_lip.{ver}.trt',
             'hash': '2ac2e57eb2edd5aec70dc45023113e2ccc0495a16579c6c5d56fa30b74edc4f5'
         },
         {
-            'model_name': 'LivePortraitStitching', 
-            'local_path': f'{models_dir}/liveportrait_onnx/stitching.' + trt.__version__ + '.trt', 
+            'model_name': 'LivePortraitStitching',
+            'local_path': f'{models_dir}/liveportrait_onnx/stitching.{ver}.trt',
             'hash': '8448de922a824b7b11eb7f470805ec22cf4ee541f7d66afeb2965094f96fd3ab'
         },
         {
-            'model_name': 'LivePortraitWarpingSpadeFix', 
-            'local_path': f'{models_dir}/liveportrait_onnx/warping_spade-fix.' + trt.__version__ + '.trt', 
+            'model_name': 'LivePortraitWarpingSpadeFix',
+            'local_path': f'{models_dir}/liveportrait_onnx/warping_spade-fix.{ver}.trt',
             'hash': '24acdb6379b28fbefefb6339b3605693e00f1703c21ea5b8fec0215e521f6912'
         }
     ]
-except ModuleNotFoundError:
-    models_trt_list = []
+    return _trt_models_cache
 
 arcface_mapping_model_dict = {
     'Inswapper128': 'Inswapper128ArcFace',

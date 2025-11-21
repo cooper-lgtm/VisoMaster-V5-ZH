@@ -128,7 +128,7 @@
         "DifferencingAmountSlider": 4,
         "DifferencingBlendAmountSlider": 5,
         "BorderBottomSlider": 10,
-        "BorderLeftSlider": 10,
+        "BorderLeftSlider": 0,
         "BorderRightSlider": 10,
         "BorderTopSlider": 10,
         "BorderBlurSlider": 10,

@@ -12,12 +12,6 @@ import torch
 import onnx
 from torchvision.transforms import v2
 from PySide6 import QtCore
-try:
-    import tensorrt as trt
-    TENSORRT_AVAILABLE = True
-except ModuleNotFoundError:
-    print("No TensorRT Found")
-    TENSORRT_AVAILABLE = False
 
 from app.processors.utils.engine_builder import onnx_to_trt as onnx2trt
 from app.processors.utils.tensorrt_predictor import TensorRTPredictor
@@ -29,7 +23,7 @@ from app.processors.face_swappers import FaceSwappers
 from app.processors.frame_enhancers import FrameEnhancers
 from app.processors.face_editors import FaceEditors
 from app.processors.utils.dfm_model import DFMModel
-from app.processors.models_data import models_list, arcface_mapping_model_dict, models_trt_list
+from app.processors.models_data import models_list, arcface_mapping_model_dict, get_trt_models
 from app.helpers.miscellaneous import is_file_exists
 from app.helpers.downloader import download_file
 
@@ -87,14 +81,8 @@ class ModelsProcessor(QtCore.QObject):
 
         self.dfm_models: Dict[str, DFMModel] = {}
 
-        if TENSORRT_AVAILABLE:
-            # Initialize models_trt and models_trt_path
-            self.models_trt = {}
-            self.models_trt_path = {}
-            for model_data in models_trt_list:
-                model_name, model_path = model_data['model_name'], model_data['local_path']
-                self.models_trt[model_name] = None #Model Instance
-                self.models_trt_path[model_name] = model_path
+        self.models_trt = {}
+        self.models_trt_path = {}
 
         self.face_detectors = FaceDetectors(self)
         self.face_landmark_detectors = FaceLandmarkDetectors(self)
@@ -170,7 +158,32 @@ class ModelsProcessor(QtCore.QObject):
             return self.dfm_models[dfm_model]
 
 
+    def _ensure_tensorrt_module(self):
+        if hasattr(self, "_trt_module"):
+            return self._trt_module
+        try:
+            import tensorrt as trt  # type: ignore
+            self._trt_module = trt
+        except ModuleNotFoundError:
+            self._trt_module = None
+        return self._trt_module
+
+    def _ensure_trt_models(self):
+        if self.models_trt_path:
+            return True
+        trt_mod = self._ensure_tensorrt_module()
+        if trt_mod is None:
+            return False
+        trt_models = get_trt_models()
+        for model_data in trt_models:
+            model_name, model_path = model_data['model_name'], model_data['local_path']
+            self.models_trt[model_name] = None
+            self.models_trt_path[model_name] = model_path
+        return bool(trt_models)
+
     def load_model_trt(self, model_name, custom_plugin_path=None, precision='fp16', debug=False):
+        if not self._ensure_trt_models():
+            raise RuntimeError("TensorRT 不可用，请检查 TensorRT 安装或 DLL 路径")
         # self.showModelLoadingProgressBar()
         #time.sleep(0.5)
         self.main_window.model_loading_signal.emit()
@@ -195,15 +208,13 @@ class ModelsProcessor(QtCore.QObject):
         gc.collect()
 
     def delete_models_trt(self):
-        if TENSORRT_AVAILABLE:
-            for model_data in models_trt_list:
-                model_name = model_data['model_name']
-                if isinstance(self.models_trt[model_name], TensorRTPredictor):
-                    # È un'istanza di TensorRTPredictor
-                    self.models_trt[model_name].cleanup()
-                    del self.models_trt[model_name]
-                    self.models_trt[model_name] = None #Model Instance
-            gc.collect()
+        if not self.models_trt_path:
+            return
+        for model_name, trt_instance in list(self.models_trt.items()):
+            if isinstance(trt_instance, TensorRTPredictor):
+                trt_instance.cleanup()
+            self.models_trt[model_name] = None
+        gc.collect()
 
     def delete_models_dfm(self):
         keys_to_remove = []
@@ -227,13 +238,21 @@ class ModelsProcessor(QtCore.QObject):
     def switch_providers_priority(self, provider_name):
         match provider_name:
             case "TensorRT" | "TensorRT-Engine":
+                trt_mod = self._ensure_tensorrt_module()
+                if trt_mod is None:
+                    print("TensorRT 未安装或未找到 DLL，回退到 CUDA/CPU")
+                    self.providers = [('CUDAExecutionProvider'), ('CPUExecutionProvider')]
+                    self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                    self.provider_name = provider_name
+                    return
+
                 providers = [
                                 ('TensorrtExecutionProvider', self.trt_ep_options),
                                 ('CUDAExecutionProvider'),
                                 ('CPUExecutionProvider')
                             ]
                 self.device = 'cuda'
-                if version.parse(trt.__version__) < version.parse("10.2.0") and provider_name == "TensorRT-Engine":
+                if version.parse(trt_mod.__version__) < version.parse("10.2.0") and provider_name == "TensorRT-Engine":
                     print("TensorRT-Engine provider cannot be used when TensorRT version is lower than 10.2.0.")
                     provider_name = "TensorRT"
 
